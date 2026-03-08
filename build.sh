@@ -30,8 +30,7 @@ fi
 # Install Python packages (user-level)
 ###############################################
 
-python3.6 -m pip install --user --upgrade pip setuptools wheel
-python3.6 -m pip install --user setproctitle
+python3.6 -m pip install --user --upgrade pip setuptools setproctitle wheel
 
 ###############################################
 # Prepare sources
