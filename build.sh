@@ -112,26 +112,18 @@ cp /usr/lib64/libpython${PYVER}*.so* "$APPDIR/usr/lib/" 2>/dev/null || true
 cp -r /usr/lib64/python${PYVER}/* "$APPDIR/usr/lib/python${PYVER}/" 2>/dev/null || true
 
 ###############################################
-# Copy setproctitle (user or system installed)
+# Copy setproctitle (installed via --user)
 ###############################################
 
-mkdir -p "$APPDIR/usr/lib/python${PYVER}/site-packages"
+SITE="$HOME/.local/lib/python${PYVER}/site-packages"
+DEST="$APPDIR/usr/lib/python${PYVER}/site-packages"
 
-USERPT="$HOME/.local/lib/python${PYVER}/site-packages/setproctitle"*.so
-USERPT64="$HOME/.local/lib64/python${PYVER}/site-packages/setproctitle"*.so
-SYS1="/usr/lib64/python${PYVER}/site-packages/setproctitle"*.so
-SYS2="/usr/local/lib64/python${PYVER}/site-packages/setproctitle"*.so
+mkdir -p "$DEST"
 
-if ls $USERPT 1>/dev/null 2>&1; then
-    cp $USERPT "$APPDIR/usr/lib/python${PYVER}/site-packages/"
-elif ls $USERPT64 1>/dev/null 2>&1; then
-    cp $USERPT64 "$APPDIR/usr/lib/python${PYVER}/site-packages/"
-elif ls $SYS1 1>/dev/null 2>&1; then
-    cp $SYS1 "$APPDIR/usr/lib/python${PYVER}/site-packages/"
-elif ls $SYS2 1>/dev/null 2>&1; then
-    cp $SYS2 "$APPDIR/usr/lib/python${PYVER}/site-packages/"
+if ls "$SITE"/setproctitle*.so 1>/dev/null 2>&1; then
+    cp "$SITE"/setproctitle*.so "$DEST/"
 else
-    echo "ERROR: setproctitle not installed for Python ${PYVER}"
+    echo "ERROR: setproctitle not found in user site-packages"
     exit 1
 fi
 
@@ -250,7 +242,7 @@ cd "$HERE/usr/lib/python${PYVER}/site-packages/emote" 2>/dev/null \
 
 echo "Running Emote from: $(pwd)"
 
-exec "$HERE/usr/bin/python${PYVER}" -m emote "$@"
+exec "$HERE/usr/bin/python${PYVER}" "$HERE/usr/lib/python${PYVER}/site-packages/emote/__main__.py" "$@"
 EOF
 
 chmod +x "$APPDIR/AppRun"
