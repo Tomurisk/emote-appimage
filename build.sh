@@ -57,7 +57,7 @@ cat > wayland-paste.patch << 'EOF'
 @@ -646,11 +646,19 @@
              self.add_emoji_to_recent(emoji)
              self.copy_to_clipboard(emoji)
- 
+
 +        # Let GTK process clipboard events
 +        for _ in range(10):
 +            while Gtk.events_pending():
@@ -65,7 +65,7 @@ cat > wayland-paste.patch << 'EOF'
 +            time.sleep(0.005)
 +
          self.destroy()
- 
+
 -        if not config.is_wayland:
 -            time.sleep(0.15)
 -            os.system("xdotool key ctrl+v")
@@ -74,7 +74,7 @@ cat > wayland-paste.patch << 'EOF'
 +        else:
 +             time.sleep(0.15)
 +             os.system("xdotool key ctrl+v")
- 
+
      def add_emoji_to_recent(self, emoji):
          user_data.update_recent_emojis(emoji)
 EOF
@@ -99,13 +99,28 @@ mkdir -p "$APPDIR/usr/lib"
 mkdir -p "$APPDIR/usr/lib/python${PYVER}"
 
 # Interpreter (explicit 3.6)
-cp /usr/bin/python${PYVER} "$APPDIR/usr/bin/python${PYVER}"
+if [ -x "/usr/bin/python${PYVER}" ]; then
+    cp "/usr/bin/python${PYVER}" "$APPDIR/usr/bin/python${PYVER}"
+else
+    echo "ERROR: python${PYVER} interpreter not found"
+    exit 1
+fi
 
-# libpython (if present)
-cp /usr/lib64/libpython${PYVER}*.so* "$APPDIR/usr/lib/" 2>/dev/null || true
+# libpython (required)
+if ls /usr/lib64/libpython${PYVER}*.so* 1>/dev/null 2>&1; then
+    cp /usr/lib64/libpython${PYVER}*.so* "$APPDIR/usr/lib/"
+else
+    echo "ERROR: libpython${PYVER} not found"
+    exit 1
+fi
 
 # Standard library
-cp -r /usr/lib64/python${PYVER}/* "$APPDIR/usr/lib/python${PYVER}/" 2>/dev/null || true
+if [ -d "/usr/lib64/python${PYVER}" ]; then
+    cp -r /usr/lib64/python${PYVER}/* "$APPDIR/usr/lib/python${PYVER}/"
+else
+    echo "ERROR: Python ${PYVER} standard library missing"
+    exit 1
+fi
 
 ###############################################
 # Copy setproctitle (installed via --user)
@@ -152,44 +167,61 @@ cp "$APPDIR/emote.svg" "$APPDIR/usr/share/icons/hicolor/scalable/apps/emote.svg"
 # Bundle Keybinder
 ###############################################
 
-mkdir -p "$APPDIR/usr/lib"
-
-# Keybinder shared library
-cp /usr/lib64/libkeybinder-3.0.so* \
-   "$APPDIR/usr/lib/" 2>/dev/null || true
+if ls /usr/lib64/libkeybinder-3.0.so* 1>/dev/null 2>&1; then
+    cp /usr/lib64/libkeybinder-3.0.so* "$APPDIR/usr/lib/"
+else
+    echo "ERROR: libkeybinder-3.0 missing"
+    exit 1
+fi
 
 ###############################################
-# Bundle GI typelibs (CentOS/OL8 versions)
+# Bundle GI typelibs
 ###############################################
 
 mkdir -p "$APPDIR/usr/lib/girepository-1.0"
-cp /usr/lib64/girepository-1.0/*.typelib \
-   "$APPDIR/usr/lib/girepository-1.0/" 2>/dev/null || true
+
+if ls /usr/lib64/girepository-1.0/*.typelib 1>/dev/null 2>&1; then
+    cp /usr/lib64/girepository-1.0/*.typelib "$APPDIR/usr/lib/girepository-1.0/"
+else
+    echo "ERROR: GI typelibs missing – something won't run"
+    exit 1
+fi
 
 ###############################################
-# Bundle PyGObject and PyCairo (CentOS/OL8)
+# Bundle PyGObject and PyCairo
 ###############################################
 
-mkdir -p "$APPDIR/usr/lib/python${PYVER}/site-packages"
+if [ -d "/usr/lib64/python${PYVER}/site-packages/gi" ]; then
+    cp -r "/usr/lib64/python${PYVER}/site-packages/gi" \
+        "$APPDIR/usr/lib/python${PYVER}/site-packages/"
+else
+    echo "ERROR: PyGObject (gi) missing – required for typelibs"
+    exit 1
+fi
 
-cp -r /usr/lib64/python${PYVER}/site-packages/gi \
-      "$APPDIR/usr/lib/python${PYVER}/site-packages/" 2>/dev/null || true
-
-cp -r /usr/lib64/python${PYVER}/site-packages/pycairo* \
-      "$APPDIR/usr/lib/python${PYVER}/site-packages/" 2>/dev/null || true
+if ls /usr/lib64/python${PYVER}/site-packages/pycairo* 1>/dev/null 2>&1; then
+    cp -r /usr/lib64/python${PYVER}/site-packages/pycairo* \
+        "$APPDIR/usr/lib/python${PYVER}/site-packages/"
+else
+    echo "ERROR: PyCairo missing – required for GTK"
+    exit 1
+fi
 
 ###############################################
-# Bundle only minimal extra libs (safe)
+# Bundle minimal extra libs
 ###############################################
 
-bundle_libs=(
-  /usr/lib64/libcrypto.so.1.1*
-  /usr/lib64/libssl.so.1.1*
+for lib in \
+  /usr/lib64/libcrypto.so.1.1* \
+  /usr/lib64/libssl.so.1.1* \
   /usr/lib64/libffi.so.6*
-)
-
-for lib in "${bundle_libs[@]}"; do
-  cp $lib "$APPDIR/usr/lib/" 2>/dev/null || true
+do
+    if ls $lib 1>/dev/null 2>&1; then
+        cp $lib "$APPDIR/usr/lib/"
+    else
+        echo "ERROR: Required library missing: $lib"
+        exit 1
+    fi
 done
 
 # Ensure libffi.so.6 symlink exists (for Python 3.6)
@@ -199,7 +231,7 @@ if ls "$APPDIR/usr/lib/libffi.so.6."* >/dev/null 2>&1; then
 fi
 
 ###############################################
-# AppRun (self-contained runtime)
+# AppRun
 ###############################################
 
 cat > "$APPDIR/AppRun" << 'EOF'
@@ -211,7 +243,7 @@ HERE="$(dirname "$(readlink -f "$0")")"
 PYDIR="$(ls "$HERE/usr/lib" | grep -E '^python[0-9]+\.[0-9]+$' | head -n1)"
 PYVER="${PYDIR#python}"
 
-# Use only bundled GI typelibs
+# Use only bundled GI typelibs first
 export GI_TYPELIB_PATH="$HERE/usr/lib/girepository-1.0"
 
 # Python environment
