@@ -7,7 +7,7 @@ alias wget='wget --https-only --secure-protocol=TLSv1_2'
 ###############################################
 
 VERSION="4.1.0"
-APPDIR="AppDir"
+APPDIR="$(pwd)/AppDir"
 PATCH_URL="https://patch-diff.githubusercontent.com/raw/tom-james-watson/Emote/pull/154.patch"
 PYVER="3.6"
 
@@ -30,7 +30,7 @@ fi
 # Install Python packages (user-level)
 ###############################################
 
-python3.6 -m pip install --user --upgrade pip setuptools setproctitle wheel
+python${PYVER} -m pip install --user --upgrade pip setproctitle
 
 ###############################################
 # Prepare sources
@@ -85,12 +85,8 @@ patch -p1 < wayland-paste.patch
 # Install into AppDir
 ###############################################
 
-mkdir -p "../${APPDIR}"
-
-python3 setup.py install \
-  --root "../${APPDIR}" \
-  --prefix=/usr \
-  --optimize=1
+mkdir -p "$APPDIR/usr/lib/python${PYVER}/site-packages/emote"
+cp -r emote/* "$APPDIR/usr/lib/python${PYVER}/site-packages/emote/"
 
 cd ..
 
@@ -103,7 +99,7 @@ mkdir -p "$APPDIR/usr/lib"
 mkdir -p "$APPDIR/usr/lib/python${PYVER}"
 
 # Interpreter (explicit 3.6)
-cp /usr/bin/python3.6 "$APPDIR/usr/bin/python${PYVER}"
+cp /usr/bin/python${PYVER} "$APPDIR/usr/bin/python${PYVER}"
 
 # libpython (if present)
 cp /usr/lib64/libpython${PYVER}*.so* "$APPDIR/usr/lib/" 2>/dev/null || true
@@ -153,24 +149,14 @@ mkdir -p "$APPDIR/usr/share/icons/hicolor/scalable/apps"
 cp "$APPDIR/emote.svg" "$APPDIR/usr/share/icons/hicolor/scalable/apps/emote.svg"
 
 ###############################################
-# Bundle Keybinder (safe-to-bundle components)
+# Bundle Keybinder
 ###############################################
 
 mkdir -p "$APPDIR/usr/lib"
-mkdir -p "$APPDIR/usr/lib/girepository-1.0"
-mkdir -p "$APPDIR/usr/share/gir-1.0"
 
-# Keybinder shared library (safe)
+# Keybinder shared library
 cp /usr/lib64/libkeybinder-3.0.so* \
    "$APPDIR/usr/lib/" 2>/dev/null || true
-
-# GI typelib (safe)
-cp /usr/lib64/girepository-1.0/Keybinder-3.0.typelib \
-   "$APPDIR/usr/lib/girepository-1.0/" 2>/dev/null || true
-
-# GIR XML (optional, not required at runtime)
-cp /usr/share/gir-1.0/Keybinder-3.0.gir \
-   "$APPDIR/usr/share/gir-1.0/" 2>/dev/null || true
 
 ###############################################
 # Bundle GI typelibs (CentOS/OL8 versions)
@@ -236,13 +222,12 @@ export PYTHONPLATLIBDIR="lib-dynload"
 # Use only bundled libs first
 export LD_LIBRARY_PATH="$HERE/usr/lib:${LD_LIBRARY_PATH:-}"
 
-cd "$HERE/usr/lib/python${PYVER}/site-packages/emote" 2>/dev/null \
- || cd "$HERE/usr/lib64/python${PYVER}/site-packages/emote" 2>/dev/null \
- || { echo "Cannot locate Emote package directory"; exit 1; }
+# Change directory for relative paths to work
+cd "$HERE/usr/lib/python${PYVER}/site-packages/emote"
 
 echo "Running Emote from: $(pwd)"
 
-exec "$HERE/usr/bin/python${PYVER}" "$HERE/usr/lib/python${PYVER}/site-packages/emote/__main__.py" "$@"
+exec "$HERE/usr/bin/python${PYVER}" __main__.py "$@"
 EOF
 
 chmod +x "$APPDIR/AppRun"
