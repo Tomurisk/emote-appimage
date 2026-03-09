@@ -149,7 +149,7 @@ cp "Emote-${VERSION}/static/style.css" "$STATIC_DIR/"
 cp "Emote-${VERSION}/static/logo.svg" "$STATIC_DIR/"
 
 wget -O "$STATIC_DIR/emojis.csv" \
-  "https://raw.githubusercontent.com/hfg-gmuend/openmoji/master/data/openmoji.csv"
+  "https://raw.githubusercontent.com/hfg-gmuend/openmoji/refs/tags/16.0.0/data/openmoji.csv"
 
 cp "Emote-${VERSION}/static/com.tomjwatson.Emote.desktop" "$APPDIR/emote.desktop"
 sed -i 's/Icon=.*/Icon=emote/' "$APPDIR/emote.desktop"
