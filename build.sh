@@ -85,20 +85,22 @@ patch -p1 < wayland-paste.patch
 # Install into AppDir
 ###############################################
 
-mkdir -p "$APPDIR/usr/lib/python${PYVER}/site-packages/emote"
-cp -r emote/* "$APPDIR/usr/lib/python${PYVER}/site-packages/emote/"
+SITE_PACKAGES="$APPDIR/usr/lib/python${PYVER}/site-packages"
+
+mkdir -p "$SITE_PACKAGES/emote"
+cp -r emote/* "$SITE_PACKAGES/emote/"
 
 cd ..
 
 ###############################################
-# Bundle Python 3.6 (CentOS/OL8 layout)
+# Bundle Python (CentOS/OL8 layout)
 ###############################################
 
 mkdir -p "$APPDIR/usr/bin"
 mkdir -p "$APPDIR/usr/lib"
 mkdir -p "$APPDIR/usr/lib/python${PYVER}"
 
-# Interpreter (explicit 3.6)
+# Interpreter
 if [ -x "/usr/bin/python${PYVER}" ]; then
     cp "/usr/bin/python${PYVER}" "$APPDIR/usr/bin/python${PYVER}"
 else
@@ -127,12 +129,9 @@ fi
 ###############################################
 
 SITE="$HOME/.local/lib/python${PYVER}/site-packages"
-DEST="$APPDIR/usr/lib/python${PYVER}/site-packages"
-
-mkdir -p "$DEST"
 
 if ls "$SITE"/setproctitle*.so 1>/dev/null 2>&1; then
-    cp "$SITE"/setproctitle*.so "$DEST/"
+    cp "$SITE"/setproctitle*.so "$SITE_PACKAGES"/
 else
     echo "ERROR: setproctitle not found in user site-packages"
     exit 1
@@ -142,7 +141,7 @@ fi
 # Static assets (CSS, icons, emojis)
 ###############################################
 
-STATIC_DIR="$APPDIR/usr/lib/python${PYVER}/site-packages/emote/static"
+STATIC_DIR="$SITE_PACKAGES/emote/static"
 mkdir -p "$STATIC_DIR"
 
 cp "Emote-${VERSION}/static/style.css" "$STATIC_DIR/"
@@ -167,10 +166,12 @@ cp "$APPDIR/emote.svg" "$APPDIR/usr/share/icons/hicolor/scalable/apps/emote.svg"
 # Bundle Keybinder
 ###############################################
 
-if ls /usr/lib64/libkeybinder-3.0.so* 1>/dev/null 2>&1; then
-    cp /usr/lib64/libkeybinder-3.0.so* "$APPDIR/usr/lib/"
+LIBKEYBINDER="/usr/lib64/libkeybinder-3.0.so"
+
+if ls "$LIBKEYBINDER"* 1>/dev/null 2>&1; then
+    cp "$LIBKEYBINDER"* "$APPDIR/usr/lib/"
 else
-    echo "ERROR: libkeybinder-3.0 missing"
+    echo "ERROR: libkeybinder missing"
     exit 1
 fi
 
@@ -180,10 +181,12 @@ fi
 
 mkdir -p "$APPDIR/usr/lib/girepository-1.0"
 
-if ls /usr/lib64/girepository-1.0/*.typelib 1>/dev/null 2>&1; then
-    cp /usr/lib64/girepository-1.0/*.typelib "$APPDIR/usr/lib/girepository-1.0/"
+KEYBINDER_TLIB="/usr/lib64/girepository-1.0/Keybinder-3.0.typelib"
+
+if [ -f "$KEYBINDER_TLIB" ]; then
+    cp "$KEYBINDER_TLIB" "$APPDIR/usr/lib/girepository-1.0/"
 else
-    echo "ERROR: GI typelibs missing – something won't run"
+    echo "ERROR: Keybinder typelib missing – Emote won't run"
     exit 1
 fi
 
@@ -191,17 +194,19 @@ fi
 # Bundle PyGObject and PyCairo
 ###############################################
 
-if [ -d "/usr/lib64/python${PYVER}/site-packages/gi" ]; then
-    cp -r "/usr/lib64/python${PYVER}/site-packages/gi" \
-        "$APPDIR/usr/lib/python${PYVER}/site-packages/"
+SYSTEM_PACKAGES="/usr/lib64/python${PYVER}/site-packages"
+
+if [ -d "$SYSTEM_PACKAGES/gi" ]; then
+    cp -r "$SYSTEM_PACKAGES/gi" \
+        "$SITE_PACKAGES/"
 else
     echo "ERROR: PyGObject (gi) missing – required for typelibs"
     exit 1
 fi
 
-if ls /usr/lib64/python${PYVER}/site-packages/pycairo* 1>/dev/null 2>&1; then
-    cp -r /usr/lib64/python${PYVER}/site-packages/pycairo* \
-        "$APPDIR/usr/lib/python${PYVER}/site-packages/"
+if ls $SYSTEM_PACKAGES/pycairo* 1>/dev/null 2>&1; then
+    cp -r $SYSTEM_PACKAGES/pycairo* \
+        "$SITE_PACKAGES/"
 else
     echo "ERROR: PyCairo missing – required for GTK"
     exit 1

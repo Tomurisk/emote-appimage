@@ -39,7 +39,7 @@ jobs:
             patch wget file \
             python3 python3-pip \
             python3-gobject-base python3-cairo \
-            gobject-introspection keybinder3 \
+            keybinder3 \
 
       - uses: actions/checkout@v4
 
