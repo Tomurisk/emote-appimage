@@ -161,6 +161,19 @@ mkdir -p "$APPDIR/usr/share/icons/hicolor/scalable/apps"
 cp "$APPDIR/emote.svg" "$APPDIR/usr/share/icons/hicolor/scalable/apps/emote.svg"
 
 ###############################################
+# Bundle xdotool
+###############################################
+
+XDOTOOL="/usr/bin/xdotool"
+
+if ls "$XDOTOOL" 1>/dev/null 2>&1; then
+    cp "$XDOTOOL" "$APPDIR/usr/bin/"
+else
+    echo "ERROR: xdotool missing"
+    exit 1
+fi
+
+###############################################
 # Bundle Keybinder
 ###############################################
 
@@ -217,7 +230,8 @@ fi
 for lib in \
   /usr/lib64/libcrypto.so.1.1* \
   /usr/lib64/libssl.so.1.1* \
-  /usr/lib64/libffi.so.6*
+  /usr/lib64/libffi.so.6* \
+  /usr/lib64/libxdo.so.3*
 do
     if ls $lib 1>/dev/null 2>&1; then
         cp $lib "$APPDIR/usr/lib/"
@@ -246,16 +260,19 @@ HERE="$(dirname "$(readlink -f "$0")")"
 PYDIR="$(ls "$HERE/usr/lib" | grep -E '^python[0-9]+\.[0-9]+$' | head -n1)"
 PYVER="${PYDIR#python}"
 
+# Use only bundled binaries first
+export PATH="$HERE/usr/bin:$PATH"
+
 # Use only bundled GI typelibs first
 export GI_TYPELIB_PATH="$HERE/usr/lib/girepository-1.0"
+
+# Use only bundled libs first
+export LD_LIBRARY_PATH="$HERE/usr/lib:${LD_LIBRARY_PATH:-}"
 
 # Python environment
 export PYTHONHOME="$HERE/usr"
 export PYTHONPATH="$HERE/usr/lib/python${PYVER}:$HERE/usr/lib/python${PYVER}/site-packages:$HERE/usr/lib/python${PYVER}/lib-dynload"
 export PYTHONPLATLIBDIR="lib-dynload"
-
-# Use only bundled libs first
-export LD_LIBRARY_PATH="$HERE/usr/lib:${LD_LIBRARY_PATH:-}"
 
 # Change directory for relative paths to work
 cd "$HERE/usr/lib/python${PYVER}/site-packages/emote"

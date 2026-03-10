@@ -19,48 +19,47 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          API="https://api.github.com/repos/${{ github.repository }}"
+          API="https://api.github.com/repos/Tomurisk/emote"
 
           # Query release by tag
           RESPONSE=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
-            "$API/releases/tags/continuous")
+            "$API/releases/tags/continuous" || true)
 
-          # Extract release ID without jq
-          RELEASE_ID=$(echo "$RESPONSE" | grep '"id":' | head -n1 | sed 's/[^0-9]*//g')
+          # Extract release ID safely
+          RELEASE_ID=$(echo "$RESPONSE" | grep '"id":' | head -n1 | sed 's/[^0-9]*//g' || true)
 
           if [ -n "$RELEASE_ID" ]; then
             echo "Deleting release ID: $RELEASE_ID"
             curl -s -X DELETE \
               -H "Authorization: Bearer $GITHUB_TOKEN" \
               -H "Accept: application/vnd.github+json" \
-              "$API/releases/$RELEASE_ID"
+              "$API/releases/$RELEASE_ID" || true
           else
             echo "No existing release found."
           fi
 
-          # Delete the tag if it exists
+          # Query tag
           TAG_RESPONSE=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
-            "$API/git/refs/tags/continuous")
+            "$API/git/refs/tags/continuous" || true)
 
-          TAG_EXISTS=$(echo "$TAG_RESPONSE" | grep -c '"ref":')
-
-          if [ "$TAG_EXISTS" -gt 0 ]; then
+          if echo "$TAG_RESPONSE" | grep -q '"ref":' 2>/dev/null; then
             echo "Deleting tag: continuous"
             curl -s -X DELETE \
               -H "Authorization: Bearer $GITHUB_TOKEN" \
-              "$API/git/refs/tags/continuous"
+              "$API/git/refs/tags/continuous" || true
           else
             echo "Tag 'continuous' does not exist."
           fi
       - name: Update system
         run: |
           dnf -y update
+          dnf install -y epel-release
 
       - name: Install dependencies
         run: |
           dnf install -y \
             patch wget file \
-            python3 python3-pip \
+            xdotool python3 python3-pip \
             python3-gobject-base python3-cairo \
             keybinder3 \
 

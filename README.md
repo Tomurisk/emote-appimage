@@ -1,5 +1,5 @@
 # Additional packages to install on your system
-X11: `xdotool`
+X11: xdotool is bundled
 
 Wayland: `wl-copy ydotool`
 
