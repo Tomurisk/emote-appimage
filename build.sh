@@ -287,6 +287,7 @@ wget -O "$STATIC_DIR/emojis.csv" \
 cp "Emote-${VERSION}/static/com.tomjwatson.Emote.desktop" "$APPDIR/emote.desktop"
 sed -i 's/Icon=.*/Icon=emote/' "$APPDIR/emote.desktop"
 sed -i 's/Exec=.*/Exec=emote/' "$APPDIR/emote.desktop"
+sed -i '/^Keywords=/ s/,/;/g' "$APPDIR/emote.desktop"
 
 cp "Emote-${VERSION}/static/logo.svg" "$APPDIR/emote.svg"
 
@@ -392,6 +393,69 @@ if ls "$APPDIR/usr/lib/libffi.so.6."* >/dev/null 2>&1; then
 fi
 
 ###############################################
+# Registration script
+###############################################
+
+cat > "$APPDIR/usr/bin/registration" << 'EOF'
+#!/bin/bash
+set -euo pipefail
+
+ACTION="${1:-}"
+APPDIR="${2:-}"
+
+ICON_SRC="$APPDIR/emote.svg"
+DESKTOP_SRC="$APPDIR/emote.desktop"
+
+ICON_TARGET1="$HOME/.local/share/icons/hicolor/scalable/apps"
+ICON_TARGET2="$HOME/.icons/hicolor/scalable/apps"
+DESKTOP_TARGET="$HOME/.local/share/applications"
+
+register() {
+    echo "Where to place the Emote icon?"
+    echo "(1) ~/.local/share/icons"
+    echo "(2) ~/.icons"
+    echo "Any other key to cancel"
+    read -r choice
+
+    case "$choice" in
+        1) ICON_DEST="$ICON_TARGET1" ;;
+        2) ICON_DEST="$ICON_TARGET2" ;;
+        *) echo "Canceled"; exit 0 ;;
+    esac
+
+    mkdir -p "$ICON_DEST"
+    cp "$ICON_SRC" "$ICON_DEST/emote.svg"
+
+    mkdir -p "$DESKTOP_TARGET"
+    cp "$DESKTOP_SRC" "$DESKTOP_TARGET/emote.desktop"
+
+    # Fix Exec to point to the AppImage
+    sed -i "s|^Exec=.*|Exec=$APPIMAGE|" "$DESKTOP_TARGET/emote.desktop"
+
+    # Fix Icon to point to the installed icon
+    sed -i "s|^Icon=.*|Icon=$ICON_DEST/emote.svg|" "$DESKTOP_TARGET/emote.desktop"
+
+    echo "Emote registered"
+}
+
+unregister() {
+    rm -f "$ICON_TARGET1/emote.svg"
+    rm -f "$ICON_TARGET2/emote.svg"
+    rm -f "$DESKTOP_TARGET/emote.desktop"
+
+    echo "Emote unregistered"
+}
+
+case "$ACTION" in
+    --register) register ;;
+    --unregister) unregister ;;
+    *) echo "Unknown action"; exit 1 ;;
+esac
+EOF
+
+chmod +x "$APPDIR/usr/bin/registration"
+
+###############################################
 # AppRun
 ###############################################
 
@@ -400,6 +464,14 @@ cat > "$APPDIR/AppRun" << 'EOF'
 set -euo pipefail
 
 HERE="$(dirname "$(readlink -f "$0")")"
+
+if [[ "${1:-}" == "--reg" || "${1:-}" == "-r" ]]; then
+    exec "$HERE/usr/bin/registration" --register "$HERE"
+fi
+
+if [[ "${1:-}" == "--unreg" || "${1:-}" == "-u" ]]; then
+    exec "$HERE/usr/bin/registration" --unregister "$HERE"
+fi
 
 PYDIR="$(ls "$HERE/usr/lib" | grep -E '^python[0-9]+\.[0-9]+$' | head -n1)"
 PYVER="${PYDIR#python}"

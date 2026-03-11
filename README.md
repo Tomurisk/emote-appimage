@@ -4,6 +4,11 @@ X11: xdotool is already bundled
 
 Wayland: `wl-copy ydotool`
 
+# Application menu (un)registration
+Run the AppImage in command line with argument `--reg` or `-r` to create the desktop file and associated icon
+
+Run the AppImage in command line with argument `--unreg` or `-u` to remove them
+
 # Tested distros
 <img src="https://upload.wikimedia.org/wikipedia/commons/7/7b/Ubuntu-logo-no-wordmark-solid-o-2022.svg" width="20"> Ubuntu 18.10
 
