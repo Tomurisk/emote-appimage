@@ -432,9 +432,6 @@ register() {
     # Fix Exec to point to the AppImage
     sed -i "s|^Exec=.*|Exec=$APPIMAGE|" "$DESKTOP_TARGET/emote.desktop"
 
-    # Fix Icon to point to the installed icon
-    sed -i "s|^Icon=.*|Icon=$ICON_DEST/emote.svg|" "$DESKTOP_TARGET/emote.desktop"
-
     echo "Emote registered"
 }
 

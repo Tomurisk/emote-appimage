@@ -63,7 +63,7 @@ jobs:
             python3-gobject-base python3-cairo \
             python3-regex keybinder3 \
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@main
 
       - name: Make build script executable
         run: chmod +x build.sh
@@ -72,7 +72,7 @@ jobs:
         run: ./build.sh
 
       - name: Upload to Continuous Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@master
         with:
           tag_name: continuous
           name: Continuous Build
