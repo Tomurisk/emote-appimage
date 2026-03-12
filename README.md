@@ -1,4 +1,8 @@
 ![GitHub License](https://img.shields.io/github/license/Tomurisk/emote-appimage)
+# New nifty little features!
+You can now middle‑click the preview to discard emojis. They also wrap across multiple rows, making it easier to work with dozens of emojis!
+![Demo](demo.gif)
+
 # Additional packages to install on your system
 X11: xdotool is already bundled
 
