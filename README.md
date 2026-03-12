@@ -1,4 +1,4 @@
-![GitHub License](https://img.shields.io/github/license/Tomurisk/emote)
+![GitHub License](https://img.shields.io/github/license/Tomurisk/emote-appimage)
 # Additional packages to install on your system
 X11: xdotool is already bundled
 

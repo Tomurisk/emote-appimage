@@ -434,10 +434,8 @@ do
 done
 
 # Ensure libffi.so.6 symlink exists (for Python 3.6)
-if ls "$APPDIR/usr/lib/libffi.so.6."* >/dev/null 2>&1; then
-    realffi="$(basename "$(ls "$APPDIR/usr/lib/libffi.so.6."* | head -n1)")"
-    ln -sf "$realffi" "$APPDIR/usr/lib/libffi.so.6"
-fi
+realffi="$(basename "$(ls "$APPDIR/usr/lib/libffi.so.6."* | head -n1)")"
+ln -sf "$realffi" "$APPDIR/usr/lib/libffi.so.6"
 
 ###############################################
 # Registration script
