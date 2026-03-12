@@ -271,7 +271,7 @@ patch -p1 < openmoji.patch
 SITE_PACKAGES="$APPDIR/usr/lib/python${PYVER}/site-packages"
 
 mkdir -p "$SITE_PACKAGES/emote"
-cp -r emote/* "$SITE_PACKAGES/emote/"
+cp -r emote/* "$SITE_PACKAGES/emote"
 
 cd ..
 
@@ -291,7 +291,7 @@ fi
 
 # libpython (required)
 if ls /usr/lib64/libpython${PYVER}*.so* 1>/dev/null 2>&1; then
-    cp /usr/lib64/libpython${PYVER}*.so* "$APPDIR/usr/lib/"
+    cp /usr/lib64/libpython${PYVER}*.so* "$APPDIR/usr/lib"
 else
     echo "ERROR: libpython${PYVER} not found"
     exit 1
@@ -299,7 +299,7 @@ fi
 
 # Standard library
 if [ -d "/usr/lib64/python${PYVER}" ]; then
-    cp -r /usr/lib64/python${PYVER}/* "$APPDIR/usr/lib/python${PYVER}/"
+    cp -r /usr/lib64/python${PYVER}/* "$APPDIR/usr/lib/python${PYVER}"
 else
     echo "ERROR: Python ${PYVER} standard library missing"
     exit 1
@@ -312,7 +312,7 @@ fi
 SITE_USER="$HOME/.local/lib/python${PYVER}/site-packages"
 
 if ls "$SITE_USER"/setproctitle*.so 1>/dev/null 2>&1; then
-    cp "$SITE_USER"/setproctitle*.so "$SITE_PACKAGES"/
+    cp "$SITE_USER"/setproctitle*.so "$SITE_PACKAGES"
 else
     echo "ERROR: setproctitle not found in user site-packages"
     exit 1
@@ -325,24 +325,24 @@ fi
 STATIC_DIR="$SITE_PACKAGES/emote/static"
 mkdir -p "$STATIC_DIR"
 
-cp "Emote-${VERSION}/static/style.css" "$STATIC_DIR/"
-cp "Emote-${VERSION}/static/logo.svg" "$STATIC_DIR/"
+cp "Emote-${VERSION}/static/style.css" "$STATIC_DIR"
+cp "Emote-${VERSION}/static/logo.svg" "$STATIC_DIR"
 
 wget -O "$STATIC_DIR/openmoji.csv" \
   "https://raw.githubusercontent.com/hfg-gmuend/openmoji/refs/tags/16.0.0/data/openmoji.csv"
 
 cp "Emote-${VERSION}/static/com.tomjwatson.Emote.desktop" "$APPDIR/emote.desktop"
 sed -i 's/Icon=.*/Icon=emote/' "$APPDIR/emote.desktop"
-sed -i 's/Exec=.*/Exec=emote/' "$APPDIR/emote.desktop"
+sed -i 's/Exec=.*/Exec=\/AppRun/' "$APPDIR/emote.desktop"
 sed -i '/^Keywords=/ s/,/;/g' "$APPDIR/emote.desktop"
 
 cp "Emote-${VERSION}/static/logo.svg" "$APPDIR/emote.svg"
 
 mkdir -p "$APPDIR/usr/share/applications"
-cp "$APPDIR/emote.desktop" "$APPDIR/usr/share/applications/emote.desktop"
+cp "$APPDIR/emote.desktop" "$APPDIR/usr/share/applications"
 
 mkdir -p "$APPDIR/usr/share/icons/hicolor/scalable/apps"
-cp "$APPDIR/emote.svg" "$APPDIR/usr/share/icons/hicolor/scalable/apps/emote.svg"
+cp "$APPDIR/emote.svg" "$APPDIR/usr/share/icons/hicolor/scalable/apps"
 
 ###############################################
 # Bundle xdotool
@@ -351,7 +351,7 @@ cp "$APPDIR/emote.svg" "$APPDIR/usr/share/icons/hicolor/scalable/apps/emote.svg"
 XDOTOOL="/usr/bin/xdotool"
 
 if ls "$XDOTOOL" 1>/dev/null 2>&1; then
-    cp "$XDOTOOL" "$APPDIR/usr/bin/"
+    cp "$XDOTOOL" "$APPDIR/usr/bin"
 else
     echo "ERROR: xdotool missing"
     exit 1
@@ -364,7 +364,7 @@ fi
 LIBKEYBINDER="/usr/lib64/libkeybinder-3.0.so"
 
 if ls "$LIBKEYBINDER"* 1>/dev/null 2>&1; then
-    cp "$LIBKEYBINDER"* "$APPDIR/usr/lib/"
+    cp "$LIBKEYBINDER"* "$APPDIR/usr/lib"
 else
     echo "ERROR: libkeybinder missing"
     exit 1
@@ -379,7 +379,7 @@ mkdir -p "$APPDIR/usr/lib/girepository-1.0"
 KEYBINDER_TLIB="/usr/lib64/girepository-1.0/Keybinder-3.0.typelib"
 
 if [ -f "$KEYBINDER_TLIB" ]; then
-    cp "$KEYBINDER_TLIB" "$APPDIR/usr/lib/girepository-1.0/"
+    cp "$KEYBINDER_TLIB" "$APPDIR/usr/lib/girepository-1.0"
 else
     echo "ERROR: Keybinder typelib missing – Emote won't run"
     exit 1
@@ -393,7 +393,7 @@ SYSTEM_PACKAGES="/usr/lib64/python${PYVER}/site-packages"
 
 if [ -d "$SYSTEM_PACKAGES/gi" ]; then
     cp -r "$SYSTEM_PACKAGES/gi" \
-        "$SITE_PACKAGES/"
+        "$SITE_PACKAGES"
 else
     echo "ERROR: PyGObject (gi) missing – required for typelibs"
     exit 1
@@ -401,7 +401,7 @@ fi
 
 if ls $SYSTEM_PACKAGES/pycairo* 1>/dev/null 2>&1; then
     cp -r $SYSTEM_PACKAGES/pycairo* \
-        "$SITE_PACKAGES/"
+        "$SITE_PACKAGES"
 else
     echo "ERROR: PyCairo missing – required for GTK"
     exit 1
@@ -409,7 +409,7 @@ fi
 
 if ls $SYSTEM_PACKAGES/regex* 1>/dev/null 2>&1; then
     cp -r $SYSTEM_PACKAGES/regex* \
-        "$SITE_PACKAGES/"
+        "$SITE_PACKAGES"
 else
     echo "ERROR: regex missing – required for splitting emoji sequences"
     exit 1
@@ -426,7 +426,7 @@ for lib in \
   /usr/lib64/libxdo.so.3
 do
     if ls $lib 1>/dev/null 2>&1; then
-        cp $lib "$APPDIR/usr/lib/"
+        cp $lib "$APPDIR/usr/lib"
     else
         echo "ERROR: Required library missing: $lib"
         exit 1
@@ -469,10 +469,10 @@ register() {
     esac
 
     mkdir -p "$ICON_DEST"
-    cp "$ICON_SRC" "$ICON_DEST/emote.svg"
+    cp "$ICON_SRC" "$ICON_DEST"
 
     mkdir -p "$DESKTOP_TARGET"
-    cp "$DESKTOP_SRC" "$DESKTOP_TARGET/emote.desktop"
+    cp "$DESKTOP_SRC" "$DESKTOP_TARGET"
 
     # Fix Exec to point to the AppImage
     sed -i "s|^Exec=.*|Exec=$APPIMAGE|" "$DESKTOP_TARGET/emote.desktop"
