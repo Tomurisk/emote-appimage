@@ -420,10 +420,10 @@ fi
 ###############################################
 
 for lib in \
-  /usr/lib64/libcrypto.so.1.1* \
-  /usr/lib64/libssl.so.1.1* \
-  /usr/lib64/libffi.so.6* \
-  /usr/lib64/libxdo.so.3*
+  /usr/lib64/libcrypto.so.1.1 \
+  /usr/lib64/libssl.so.1.1 \
+  /usr/lib64/libffi.so.6.* \
+  /usr/lib64/libxdo.so.3
 do
     if ls $lib 1>/dev/null 2>&1; then
         cp $lib "$APPDIR/usr/lib/"
