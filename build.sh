@@ -553,6 +553,6 @@ ARCH=x86_64 "$APPIMAGETOOL" --appimage-extract-and-run "$APPDIR"
 ###############################################
 
 shopt -s extglob
-rm -rf "$APPDIR" Emote-!(*.AppImage) "v${VERSION}.tar.gz" 154.patch wayland-paste.patch
+rm -rf "$APPDIR" Emote-!(*.AppImage) "v${VERSION}.tar.gz"
 
 echo "Done"
