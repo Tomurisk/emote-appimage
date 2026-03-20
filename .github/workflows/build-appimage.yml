@@ -58,7 +58,7 @@ jobs:
       - name: Install dependencies
         run: |
           dnf install -y \
-            patch wget file \
+            patch wget file jq \
             xdotool python3 python3-pip \
             python3-gobject-base python3-cairo \
             python3-regex keybinder3 \

@@ -11,11 +11,18 @@ APPDIR="$(pwd)/AppDir"
 PATCH_URL="https://patch-diff.githubusercontent.com/raw/tom-james-watson/Emote/pull/154.patch"
 PYVER="3.6"
 
+TARBALL_MD5="80df80daadbc81bbae639d6f0dd3d4e8"
+PATCH_MD5="46e93b3acd34dac8aa0c77b16f362bad"
+OPENMOJI_MD5="8410259d3ba38859a65e8a2c8c4f6687"
+
 ###############################################
 # Fetch appimagetool dynamically
 ###############################################
 
 APPIMAGETOOL="$HOME/Programs/appimagetool-x86_64.AppImage"
+AIT_SHA256=$(wget -qO- https://api.github.com/repos/AppImage/appimagetool/releases/latest \
+  | jq -r '.assets[] | select(.name=="appimagetool-x86_64.AppImage") | .digest' \
+  | cut -d: -f2)
 
 mkdir -p "$HOME/Programs"
 
@@ -23,7 +30,14 @@ if [ ! -f "$APPIMAGETOOL" ]; then
     echo "Downloading appimagetool..."
     wget -O "$APPIMAGETOOL" \
       "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage"
-    chmod +x "$APPIMAGETOOL"
+
+    if echo "$AIT_SHA256  $APPIMAGETOOL" | sha256sum -c -; then
+        echo "appimagetool checksum OK"
+        chmod +x "$APPIMAGETOOL"
+    else
+        echo "ERROR: Checksum mismatch!"
+        exit 1
+    fi
 fi
 
 ###############################################
@@ -36,17 +50,25 @@ python${PYVER} -m pip install --user --upgrade pip setproctitle
 # Prepare sources
 ###############################################
 
-rm -rf "$APPDIR" Emote-* "v${VERSION}.tar.gz" 154.patch wayland-paste.patch
+rm -rf "$APPDIR" Emote-* "v${VERSION}.tar.gz"
 
 wget -O "v${VERSION}.tar.gz" \
   "https://github.com/tom-james-watson/Emote/archive/refs/tags/v${VERSION}.tar.gz"
 
-tar xf "v${VERSION}.tar.gz"
-cd "Emote-${VERSION}"
-
 # Removes manimpango
 wget -O 154.patch "$PATCH_URL"
-patch -p1 < 154.patch
+
+if echo "$TARBALL_MD5  v${VERSION}.tar.gz" | md5sum -c - \
+   && echo "$PATCH_MD5  154.patch" | md5sum -c -; then
+    echo "Checksums OK – extracting and patching"
+    tar xf "v${VERSION}.tar.gz"
+    mv 154.patch "Emote-${VERSION}"
+    cd "Emote-${VERSION}"
+    patch -p1 < 154.patch
+else
+    echo "ERROR: Checksum mismatch!"
+    exit 1
+fi
 
 ###############################################
 # Apply quality of life patch
@@ -331,6 +353,13 @@ cp "Emote-${VERSION}/static/logo.svg" "$STATIC_DIR"
 wget -O "$STATIC_DIR/openmoji.csv" \
   "https://raw.githubusercontent.com/hfg-gmuend/openmoji/refs/tags/16.0.0/data/openmoji.csv"
 
+if echo "$OPENMOJI_MD5  $STATIC_DIR/openmoji.csv" | md5sum -c -; then
+    echo "openmoji.csv checksum OK"
+else
+    echo "ERROR: Checksum mismatch!"
+    exit 1
+fi
+
 cp "Emote-${VERSION}/static/com.tomjwatson.Emote.desktop" "$APPDIR/emote.desktop"
 sed -i 's/Icon=.*/Icon=emote/' "$APPDIR/emote.desktop"
 sed -i 's/Exec=.*/Exec=\/AppRun/' "$APPDIR/emote.desktop"
@@ -399,16 +428,16 @@ else
     exit 1
 fi
 
-if ls $SYSTEM_PACKAGES/pycairo* 1>/dev/null 2>&1; then
-    cp -r $SYSTEM_PACKAGES/pycairo* \
+if ls "$SYSTEM_PACKAGES"/pycairo* 1>/dev/null 2>&1; then
+    cp -r "$SYSTEM_PACKAGES"/pycairo* \
         "$SITE_PACKAGES"
 else
     echo "ERROR: PyCairo missing – required for GTK"
     exit 1
 fi
 
-if ls $SYSTEM_PACKAGES/regex* 1>/dev/null 2>&1; then
-    cp -r $SYSTEM_PACKAGES/regex* \
+if ls "$SYSTEM_PACKAGES"/regex* 1>/dev/null 2>&1; then
+    cp -r "$SYSTEM_PACKAGES"/regex* \
         "$SITE_PACKAGES"
 else
     echo "ERROR: regex missing – required for splitting emoji sequences"
