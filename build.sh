@@ -10,15 +10,17 @@ VERSION="4.1.0"
 APPDIR="$(pwd)/AppDir"
 AIT_DIR="/tmp/appimagetool"
 AIT_VER="1.9.1"
+SPT_VER="1.2.3"
 PYVER="3.6"
 
 TARBALL_MD5="80df80daadbc81bbae639d6f0dd3d4e8"
 PATCH_MD5="46e93b3acd34dac8aa0c77b16f362bad"
 OPENMOJI_MD5="8410259d3ba38859a65e8a2c8c4f6687"
 AIT_SHA256="ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0"
+SPT_SHA256="b2fa9f4b382a6cf88f2f345044d0916a92f37cac21355585bd14bc7ee91af187"
 
 # Clear old resources
-rm -rf "$APPDIR" "$AIT_DIR" Emote-* "v${VERSION}.tar.gz"
+rm -rf "$APPDIR" "$AIT_DIR" Emote-* "v${VERSION}.tar.gz" requirements.txt
 
 ###############################################
 # Fetch appimagetool dynamically
@@ -45,7 +47,13 @@ fi
 # Install Python packages (user-level)
 ###############################################
 
-python${PYVER} -m pip install --user --upgrade pip setproctitle
+cat > requirements.txt << EOF
+setproctitle==$SPT_VER \
+    --hash=sha256:$SPT_SHA256
+EOF
+
+python${PYVER} -m pip install --user --upgrade pip
+python${PYVER} -m pip install --user --upgrade --require-hashes -r requirements.txt
 
 ###############################################
 # Prepare sources
@@ -612,6 +620,6 @@ fi
 ###############################################
 
 shopt -s extglob
-rm -rf "$APPDIR" "$AIT_DIR" Emote-!(*.AppImage) "v${VERSION}.tar.gz"
+rm -rf "$APPDIR" "$AIT_DIR" Emote-!(*.AppImage) "v${VERSION}.tar.gz" requirements.txt
 
 echo "Done"
