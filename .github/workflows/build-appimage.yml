@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
 
     container:
-      image: oraclelinux:8
+      image: almalinux:latest
 
     steps:
       - name: Delete old continuous release and tag
@@ -53,15 +53,10 @@ jobs:
       - name: Update system
         run: |
           dnf -y update
-          dnf install -y epel-release
 
       - name: Install dependencies
         run: |
-          dnf install -y \
-            patch wget file perl \
-            xdotool python3 python3-pip \
-            python3-gobject-base python3-cairo \
-            python3-regex keybinder3 \
+          dnf install -y patch wget file perl dnf-plugins-core cpio
 
       - uses: actions/checkout@main
 

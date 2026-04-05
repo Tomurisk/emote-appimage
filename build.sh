@@ -6,13 +6,25 @@ alias wget='wget --https-only --secure-protocol=TLSv1_2'
 # Config
 ###############################################
 
+# Content blocks
+source content_blocks.sh
+
+# Versions
 VERSION="4.1.0"
-APPDIR="$(pwd)/AppDir"
-AIT_DIR="/tmp/appimagetool"
 AIT_VER="1.9.1"
-SPT_VER="1.2.3"
 PYVER="3.6"
 
+# Definitions
+AIT_DIR="/tmp/appimagetool"
+APPDIR="$(pwd)/AppDir"
+RPMS="$(pwd)/RPMs"
+SPT_URL="https://web.archive.org/web/20260405142525/
+https://files.pythonhosted.org/packages/8f/71/
+1017f29259f486f963535213b2b81645da35edd14de3539084e2d291d16b/
+setproctitle-1.2.3-cp36-cp36m-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
+# I archived it myself and calculated the hash when the wheel was still up
+
+# Hashes
 TARBALL_SHA256="171ddf7e216f12a9e0ed63cd0a97796fd63967df3b3aa5e452877b74aabd48c9"
 PATCH_SHA256="c8fab9cd79c7def484809158930df576de5a6a4c08232272b3f8eed9ae18c874"
 OPENMOJI_SHA256="af7a784e6a0dafb343c5e1958b159ca577c1faad6ab37add8a939f849f9a0303"
@@ -20,42 +32,111 @@ AIT_SHA256="ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0"
 SPT_SHA256="b2fa9f4b382a6cf88f2f345044d0916a92f37cac21355585bd14bc7ee91af187"
 
 # Clear old resources
-rm -rf "$APPDIR" "$AIT_DIR" Emote-* "v${VERSION}.tar.gz" setproctitle.txt *.patch
+rm -rf "$APPDIR" "$AIT_DIR" Emote-* RPMs "v${VERSION}.tar.gz" *.whl
 
 ###############################################
-# Fetch appimagetool dynamically
+# Prepare OL8 repo and RPMs
 ###############################################
 
-APPIMAGETOOL="$AIT_DIR/appimagetool-x86_64.AppImage"
-mkdir -p "$AIT_DIR"
+# Oracle Linux gives slightly smaller and newer binaries
+# Otherwise Ellison can drown in boiling piss for all I care
 
-if [ ! -f "$APPIMAGETOOL" ]; then
-    echo "Downloading appimagetool..."
-    wget -O "$APPIMAGETOOL" \
-      "https://github.com/AppImage/appimagetool/releases/download/${AIT_VER}/appimagetool-x86_64.AppImage"
+ol8_key
 
-    if echo "$AIT_SHA256  $APPIMAGETOOL" | sha256sum -c -; then
-        echo "appimagetool checksum OK"
-        chmod +x "$APPIMAGETOOL"
-    else
-        echo "ERROR: Checksum mismatch!"
-        exit 1
-    fi
-fi
+tee /etc/yum.repos.d/ol8.repo > /dev/null << 'EOF'
+[ol8_base]
+name=Oracle Linux 8 Base
+baseurl=https://yum.oracle.com/repo/OracleLinux/OL8/baseos/latest/$basearch/
+gpgcheck=1
+gpgkey=file:///etc/pki/rpm-gpg/OL8
+enabled=0
 
-###############################################
-# Install setproctitle (user-level)
-###############################################
+[ol8_epel]
+name=Oracle Linux 8 EPEL
+baseurl=https://yum.oracle.com/repo/OracleLinux/OL8/developer/EPEL/$basearch/
+gpgcheck=1
+gpgkey=file:///etc/pki/rpm-gpg/OL8
+enabled=0
 
-cat > setproctitle.txt << EOF
-setproctitle==$SPT_VER \
-    --hash=sha256:$SPT_SHA256
+[ol8_appstream]
+name=Oracle Linux 8 AppStream
+baseurl=https://yum.oracle.com/repo/OracleLinux/OL8/appstream/$basearch/
+gpgcheck=1
+gpgkey=file:///etc/pki/rpm-gpg/OL8
+enabled=0
 EOF
 
-python${PYVER} -m pip install --user --upgrade pip
-if ! python${PYVER} -m pip install --user \
-        --require-hashes -r setproctitle.txt; then
-    echo "ERROR: setproctitle installation failed!"
+mkdir -p "$RPMS"
+pushd "$RPMS" >/dev/null
+
+dnf download \
+  --arch=x86_64 \
+  --disablerepo="*" \
+  --enablerepo=ol8_epel \
+  libxdo \
+  xdotool \
+  python3-regex
+
+dnf download \
+  --arch=x86_64 \
+  --disablerepo="*" \
+  --enablerepo=ol8_base \
+  libffi \
+  openssl-libs \
+  platform-python \
+  python3-dbus \
+  python3-gobject-base \
+  python3-libs
+
+dnf download \
+  --arch=x86_64 \
+  --disablerepo="*" \
+  --enablerepo=ol8_appstream \
+  keybinder3 \
+  python3-cairo
+
+popd >/dev/null
+
+for rpm in "$RPMS"/*.rpm; do
+    echo "Processing $rpm"
+
+    # Create a temporary extraction directory
+    TMPDIR=$(mktemp -d)
+
+    # Extract RPM contents
+    rpm2cpio "$rpm" | cpio -idmv -D "$TMPDIR"
+
+    # Copy only the desired directories if they exist
+    for path in usr/share/licenses usr/lib64 usr/libexec usr/bin; do
+        if [ -d "$TMPDIR/$path" ]; then
+            mkdir -p "$APPDIR/$path"
+            cp -a "$TMPDIR/$path/." "$APPDIR/$path/"
+        fi
+    done
+
+    # Clean up
+    rm -rf "$TMPDIR"
+done
+
+echo "RPMs merged into AppDir"
+
+# Remove OpenSSL 1.1 engines – not used in Python
+rm -rf "$APPDIR/usr/lib64/engines-1.1"
+
+# Ensure platform-python3.6m symlink exists
+ln -sf "../libexec/platform-python3.6m" "$APPDIR/usr/bin/python3.6"
+
+SITE_PACKAGES="$APPDIR/usr/lib64/python${PYVER}/site-packages"
+
+# Remove the newline that split the URL
+SPT_URL="${SPT_URL//$'\n'/}"
+
+wget -O "setproctitle.whl" "$SPT_URL"
+if echo "$SPT_SHA256  setproctitle.whl" | sha256sum -c -; then
+    echo "setproctitle.whl checksum OK"
+    unzip -j setproctitle*.whl "*.so" -d "$SITE_PACKAGES"
+else
+    echo "ERROR: Checksum mismatch!"
     exit 1
 fi
 
@@ -75,7 +156,7 @@ if echo "$TARBALL_SHA256  v${VERSION}.tar.gz" | sha256sum -c - \
     echo "Checksums OK – extracting and patching"
     tar xf "v${VERSION}.tar.gz"
     mv 154.patch "Emote-${VERSION}"
-    cd "Emote-${VERSION}"
+    pushd "Emote-${VERSION}" >/dev/null
     patch -p1 < 154.patch
 else
     echo "ERROR: Checksum mismatch!"
@@ -83,310 +164,23 @@ else
 fi
 
 ###############################################
-# Apply quality of life patch
+# Apply quality of life patches
 ###############################################
 
-cat > qol.patch << 'EOF'
---- a/emote/picker.py
-+++ b/emote/picker.py
-@@ -1,5 +1,6 @@
- import os
- import time
-+import regex
- from datetime import datetime
- import gi
- from itertools import zip_longest
-@@ -206,51 +207,68 @@
- 
-         self.previewed_emoji_label = Gtk.Label(" ")
-         self.previewed_emoji_label.set_name("previewed_emoji_label")
--        self.previewed_emoji_label.set_alignment(0, 0.2)
-+        self.previewed_emoji_label.set_alignment(0, 0.5)
-         self.emoji_preview_box.pack_start(self.previewed_emoji_label, False, False, 0)
- 
-         self.emoji_preview_box_text = Gtk.Box(
-             spacing=0, orientation=Gtk.Orientation.VERTICAL
-         )
-+
-+        self.emoji_preview_box_text.set_size_request(200, -1)
-+
-         self.previewed_emoji_name_label = Gtk.Label(
--            " ", ellipsize=Pango.EllipsizeMode.END
-+            " ", ellipsize=Pango.EllipsizeMode.END, max_width_chars=22
-         )
-         self.previewed_emoji_name_label.set_name("previewed_emoji_name_label")
--        self.previewed_emoji_name_label.set_alignment(0, 0.2)
-+        self.previewed_emoji_name_label.set_alignment(0, 0.5)
-+
-         self.emoji_preview_box_text.pack_start(
--            self.previewed_emoji_name_label, False, False, 0
-+            self.previewed_emoji_name_label, True, True, 0
-         )
- 
-         self.previewed_emoji_shortcode_label = Gtk.Label(
--            " ", ellipsize=Pango.EllipsizeMode.END
-+            " ", ellipsize=Pango.EllipsizeMode.END, max_width_chars=22
-         )
-         self.previewed_emoji_shortcode_label.set_name("previewed_emoji_shortcode_label")
--        self.previewed_emoji_shortcode_label.set_alignment(0, 0.2)
-+        self.previewed_emoji_shortcode_label.set_alignment(0, 0.5)
-+
-         self.emoji_preview_box_text.pack_start(
--            self.previewed_emoji_shortcode_label, False, False, 0
-+            self.previewed_emoji_shortcode_label, True, True, 0
-         )
- 
--        self.emoji_preview_box.pack_start(self.emoji_preview_box_text, False, False, 0)
-+        self.emoji_preview_box.pack_start(self.emoji_preview_box_text, False, False, 6)
- 
-         self.action_bar.pack_start(self.emoji_preview_box)
- 
--        self.selected_box = Gtk.Box(
--            spacing=GRID_SIZE, margin=GRID_SIZE, margin_bottom=0, expand=False
--        )
-+        self.selected_eventbox = Gtk.EventBox()
-+        self.selected_eventbox.set_visible_window(False)
-+        self.selected_eventbox.add_events(Gdk.EventMask.BUTTON_PRESS_MASK)
- 
-         self.emoji_append_list_preview = Gtk.Label(
--            " ", max_width_chars=25, ellipsize=Pango.EllipsizeMode.START
-+            " ", ellipsize=Pango.EllipsizeMode.START
-         )
-         self.emoji_append_list_preview.set_name("emoji_append_list_preview")
--        self.selected_box.pack_start(self.emoji_append_list_preview, False, False, 0)
-+        self.selected_eventbox.add(self.emoji_append_list_preview)
- 
--        self.action_bar.pack_end(self.selected_box)
-+        self.selected_eventbox.connect(
-+            "button-press-event", self.on_selected_box_middle_click
-+        )
- 
-+        self.action_bar.pack_end(self.selected_eventbox)
-         self.action_bar.show_all()
--        self.selected_box.hide()
- 
-         self.app_container.pack_end(self.action_bar, False, False, 0)
- 
-+    def on_selected_box_middle_click(self, widget, event):
-+        """Clear emoji list on middle click (button 2)"""
-+        if event.button == 2:  # Middle mouse button
-+            print("✅ Cleared emoji selection!")
-+            self.emoji_append_list = []
-+            self.copy_to_clipboard("")
-+            self.update_emoji_append_list_preview()
-+            return True
-+        return False
-+
-     def get_skintone_char(self, emoji):
-         char = emoji["char"]
- 
-@@ -282,9 +300,29 @@
-             self.previewed_emoji_name_label.set_text(" ")
-             self.previewed_emoji_shortcode_label.set_text(" ")
- 
-+    def split_graphemes(self, text):
-+        return regex.findall(r"\X", text)
-+
-+    def wrap_emoji_lines(self, graphemes, per_line=10):
-+        lines = []
-+        for i in range(0, len(graphemes), per_line):
-+            lines.append("".join(graphemes[i:i+per_line]))
-+        return "\n".join(lines)
-+
-     def update_emoji_append_list_preview(self):
--        self.emoji_append_list_preview.show_all()
--        self.emoji_append_list_preview.set_text("".join(self.emoji_append_list))
-+        text = "".join(self.emoji_append_list)
-+
-+        graphemes = self.split_graphemes(text)
-+        wrapped = self.wrap_emoji_lines(graphemes, per_line=10)
-+
-+        self.emoji_append_list_preview.set_text(wrapped)
-+        self.emoji_append_list_preview.set_line_wrap(True)
-+        self.emoji_append_list_preview.set_line_wrap_mode(Pango.WrapMode.WORD_CHAR)
-+
-+        if graphemes:
-+            self.selected_eventbox.show()
-+        else:
-+            self.selected_eventbox.hide()
- 
-     def check_welcome(self, show_welcome):
-         """Show the guide the first time we run the app"""
-@@ -619,11 +657,6 @@
-         print(f"Appending {emoji} to selection")
-         self.emoji_append_list.append(emoji)
- 
--        if len(self.emoji_append_list) == 1:
--            self.selected_box.show_all()
--            self.previewed_emoji_name_label.set_max_width_chars(20)
--            self.previewed_emoji_shortcode_label.set_max_width_chars(20)
--
-         self.update_emoji_append_list_preview()
- 
-         self.copy_to_clipboard("".join(self.emoji_append_list))
-@@ -646,11 +679,19 @@
-             self.add_emoji_to_recent(emoji)
-             self.copy_to_clipboard(emoji)
- 
-+        # Let GTK process clipboard events
-+        for _ in range(10):
-+            while Gtk.events_pending():
-+                Gtk.main_iteration_do(False)
-+            time.sleep(0.005)
-+
-         self.destroy()
- 
--        if not config.is_wayland:
--            time.sleep(0.15)
--            os.system("xdotool key ctrl+v")
-+        if config.is_wayland:
-+            os.system('bash -c "sleep 0.15; ydotool key 29:1 47:1 47:0 29:0" &')
-+        else:
-+            time.sleep(0.15)
-+            os.system("xdotool key ctrl+v")
- 
-     def add_emoji_to_recent(self, emoji):
-         user_data.update_recent_emojis(emoji)
-
-EOF
-
-patch -p1 < qol.patch
-
-###############################################
-# User-defined openmoji.csv, discard diacritics
-###############################################
-
-cat > emojis.patch << 'EOF'
---- a/emote/emojis.py
-+++ b/emote/emojis.py
-@@ -1,5 +1,7 @@
- import csv
- import re
-+import unicodedata
-+from pathlib import Path
- from collections import defaultdict
- from emote import user_data, config
- 
-@@ -50,13 +52,19 @@
- 
- 
- def init():
--    filename = (
--        f"{config.snap_root}/static/emojis.csv"
--        if config.is_snap
--        else f"{config.flatpak_root}/static/emojis.csv"
--        if config.is_flatpak
--        else "static/emojis.csv"
--    )
-+    user_override = Path("~/.config/openmoji.csv").expanduser()
-+
-+    if user_override.exists():
-+        print("Using user-defined openmoji.csv")
-+        filename = str(user_override)
-+    else:
-+        filename = (
-+            f"{config.snap_root}/static/openmoji.csv"
-+            if config.is_snap
-+            else f"{config.flatpak_root}/static/openmoji.csv"
-+            if config.is_flatpak
-+            else "static/openmoji.csv"
-+        )
- 
-     with open(filename, newline="") as csvfile:
-         reader = csv.DictReader(csvfile)
-@@ -124,13 +132,27 @@
-     return emojis_by_category
- 
- 
-+def strip_diacritics(s):
-+    # Normalize to NFD form and remove all combining marks (Mn)
-+    return ''.join(
-+        c for c in unicodedata.normalize("NFD", s)
-+        if unicodedata.category(c) != "Mn"
-+    )
-+
- def search(query):
--    query = query.lower()
-+    # Normalize and lowercase the query
-+    query = strip_diacritics(query.lower())
- 
-     def search_filter(emoji):
-         parts = emoji["name"].split("_")
-         search_terms = parts + [" ".join(parts)] + emoji["keywords"]
--        search_terms = [search_term.lower() for search_term in search_terms]
--        return any(query in search_term for search_term in search_terms)
-+
-+        # Normalize and lowercase all search terms
-+        search_terms = [
-+            strip_diacritics(term.lower())
-+            for term in search_terms
-+        ]
-+
-+        return any(query in term for term in search_terms)
- 
-     return list(filter(search_filter, all_emojis))
-
-EOF
-
+picker_patch
+patch -p1 < picker.patch
+emojis_patch
 patch -p1 < emojis.patch
 
-###############################################
-# Install into AppDir
-###############################################
-
-SITE_PACKAGES="$APPDIR/usr/lib/python${PYVER}/site-packages"
-
+# Copy emote module to AppDir
 mkdir -p "$SITE_PACKAGES/emote"
 cp -r emote/* "$SITE_PACKAGES/emote"
-
-cd ..
-
-###############################################
-# Bundle Python (CentOS/OL8 layout)
-###############################################
-
-mkdir -p "$APPDIR/usr/bin"
-
-# Interpreter
-if [ -x "/usr/bin/python${PYVER}" ]; then
-    cp "/usr/bin/python${PYVER}" "$APPDIR/usr/bin/python${PYVER}"
-else
-    echo "ERROR: python${PYVER} interpreter not found"
-    exit 1
-fi
-
-# libpython (required)
-if ls /usr/lib64/libpython${PYVER}*.so* 1>/dev/null 2>&1; then
-    cp /usr/lib64/libpython${PYVER}*.so* "$APPDIR/usr/lib"
-else
-    echo "ERROR: libpython${PYVER} not found"
-    exit 1
-fi
-
-# Standard library
-if [ -d "/usr/lib64/python${PYVER}" ]; then
-    cp -r /usr/lib64/python${PYVER}/* "$APPDIR/usr/lib/python${PYVER}"
-else
-    echo "ERROR: Python ${PYVER} standard library missing"
-    exit 1
-fi
-
-###############################################
-# Copy setproctitle (installed via --user)
-###############################################
-
-SITE_USER="$HOME/.local/lib/python${PYVER}/site-packages"
-
-if ls "$SITE_USER"/setproctitle*.so 1>/dev/null 2>&1; then
-    cp "$SITE_USER"/setproctitle*.so "$SITE_PACKAGES"
-else
-    echo "ERROR: setproctitle not found in user site-packages"
-    exit 1
-fi
 
 ###############################################
 # Static assets (CSS, icons, emojis)
 ###############################################
+
+popd >/dev/null
 
 STATIC_DIR="$SITE_PACKAGES/emote/static"
 mkdir -p "$STATIC_DIR"
@@ -431,99 +225,6 @@ cp "$APPDIR/emote.desktop" "$APPDIR/usr/share/applications"
 
 mkdir -p "$APPDIR/usr/share/icons/hicolor/scalable/apps"
 cp "$APPDIR/emote.svg" "$APPDIR/usr/share/icons/hicolor/scalable/apps"
-
-###############################################
-# Bundle xdotool
-###############################################
-
-XDOTOOL="/usr/bin/xdotool"
-
-if ls "$XDOTOOL" 1>/dev/null 2>&1; then
-    cp "$XDOTOOL" "$APPDIR/usr/bin"
-else
-    echo "ERROR: xdotool missing"
-    exit 1
-fi
-
-###############################################
-# Bundle Keybinder
-###############################################
-
-LIBKEYBINDER="/usr/lib64/libkeybinder-3.0.so"
-
-if ls "$LIBKEYBINDER"* 1>/dev/null 2>&1; then
-    cp "$LIBKEYBINDER"* "$APPDIR/usr/lib"
-else
-    echo "ERROR: libkeybinder missing"
-    exit 1
-fi
-
-###############################################
-# Bundle Keybinder typelib
-###############################################
-
-mkdir -p "$APPDIR/usr/lib/girepository-1.0"
-
-KEYBINDER_TLIB="/usr/lib64/girepository-1.0/Keybinder-3.0.typelib"
-
-if [ -f "$KEYBINDER_TLIB" ]; then
-    cp "$KEYBINDER_TLIB" "$APPDIR/usr/lib/girepository-1.0"
-else
-    echo "ERROR: Keybinder typelib missing – Emote won't run"
-    exit 1
-fi
-
-###############################################
-# Bundle PyGObject and PyCairo
-###############################################
-
-SYSTEM_PACKAGES="/usr/lib64/python${PYVER}/site-packages"
-
-if [ -d "$SYSTEM_PACKAGES/gi" ]; then
-    cp -r "$SYSTEM_PACKAGES/gi" \
-        "$SITE_PACKAGES"
-else
-    echo "ERROR: PyGObject (gi) missing – required for typelibs"
-    exit 1
-fi
-
-if ls "$SYSTEM_PACKAGES"/pycairo* 1>/dev/null 2>&1; then
-    cp -r "$SYSTEM_PACKAGES"/pycairo* \
-        "$SITE_PACKAGES"
-else
-    echo "ERROR: PyCairo missing – required for GTK"
-    exit 1
-fi
-
-if ls "$SYSTEM_PACKAGES"/regex* 1>/dev/null 2>&1; then
-    cp -r "$SYSTEM_PACKAGES"/regex* \
-        "$SITE_PACKAGES"
-else
-    echo "ERROR: regex missing – required for splitting emoji sequences"
-    exit 1
-fi
-
-###############################################
-# Bundle minimal extra libs
-###############################################
-
-for lib in \
-  /usr/lib64/libcrypto.so.1.1 \
-  /usr/lib64/libssl.so.1.1 \
-  /usr/lib64/libffi.so.6.* \
-  /usr/lib64/libxdo.so.3
-do
-    if ls $lib 1>/dev/null 2>&1; then
-        cp $lib "$APPDIR/usr/lib"
-    else
-        echo "ERROR: Required library missing: $lib"
-        exit 1
-    fi
-done
-
-# Ensure libffi.so.6 symlink exists (for Python 3.6)
-realffi="$(basename "$(ls "$APPDIR/usr/lib/libffi.so.6."* | head -n1)")"
-ln -sf "$realffi" "$APPDIR/usr/lib/libffi.so.6"
 
 ###############################################
 # Registration script
@@ -603,25 +304,25 @@ if [[ "${1:-}" == "--unreg" || "${1:-}" == "-u" ]]; then
     exec "$HERE/usr/bin/registration" --unregister "$HERE"
 fi
 
-PYDIR="$(ls "$HERE/usr/lib" | grep -E '^python[0-9]+\.[0-9]+$' | head -n1)"
+PYDIR="$(ls "$HERE/usr/lib64" | grep -E '^python[0-9]+\.[0-9]+$' | head -n1)"
 PYVER="${PYDIR#python}"
 
 # Use only bundled binaries first
 export PATH="$HERE/usr/bin:$PATH"
 
 # Use only bundled GI typelibs first
-export GI_TYPELIB_PATH="$HERE/usr/lib/girepository-1.0"
+export GI_TYPELIB_PATH="$HERE/usr/lib64/girepository-1.0"
 
 # Use only bundled libs first
-export LD_LIBRARY_PATH="$HERE/usr/lib:${LD_LIBRARY_PATH:-}"
+export LD_LIBRARY_PATH="$HERE/usr/lib64:${LD_LIBRARY_PATH:-}"
 
 # Python environment
 export PYTHONHOME="$HERE/usr"
-export PYTHONPATH="$HERE/usr/lib/python${PYVER}:$HERE/usr/lib/python${PYVER}/site-packages:$HERE/usr/lib/python${PYVER}/lib-dynload"
+export PYTHONPATH="$HERE/usr/lib64/python${PYVER}:$HERE/usr/lib64/python${PYVER}/site-packages:$HERE/usr/lib64/python${PYVER}/lib-dynload"
 export PYTHONPLATLIBDIR="lib-dynload"
 
 # Change directory for relative paths to work
-cd "$HERE/usr/lib/python${PYVER}/site-packages/emote"
+cd "$HERE/usr/lib64/python${PYVER}/site-packages/emote"
 
 echo "Running Emote from: $(pwd)"
 
@@ -631,27 +332,33 @@ EOF
 chmod +x "$APPDIR/AppRun"
 
 ###############################################
+# Fetch appimagetool dynamically
+###############################################
+
+APPIMAGETOOL="$AIT_DIR/appimagetool-x86_64.AppImage"
+mkdir -p "$AIT_DIR"
+
+if [ ! -f "$APPIMAGETOOL" ]; then
+    echo "Downloading appimagetool..."
+    wget -O "$APPIMAGETOOL" \
+      "https://github.com/AppImage/appimagetool/releases/download/${AIT_VER}/appimagetool-x86_64.AppImage"
+
+    if echo "$AIT_SHA256  $APPIMAGETOOL" | sha256sum -c -; then
+        echo "appimagetool checksum OK"
+        chmod +x "$APPIMAGETOOL"
+    else
+        echo "ERROR: Checksum mismatch!"
+        exit 1
+    fi
+fi
+
+###############################################
 # Build AppImage
 ###############################################
 
 RUNTIME="runtime-x86_64"
 
-gpg --import <<'EOF'
------BEGIN PGP PUBLIC KEY BLOCK-----
-
-mDMEZjaeexYJKwYBBAHaRw8BAQdAhvHdHoBweX0uVRgfcnlzexrSg+TAbK2mU1TA
-gi0TMC20NEFwcEltYWdlIHR5cGUgMiBydW50aW1lIDx0eXBlMi1ydW50aW1lQGFw
-cGltYWdlLm9yZz6IlgQTFggAPgIbAwULCQgHAgYVCgkICwIEFgIDAQIeAQIXgBYh
-BFcMd6zqQMDxt1iQLL+WzKVkkPaVBQJmN7FgBQkSzRXlAAoJEL+WzKVkkPaVCXsA
-/0JxQPlr2AlKalt9LAGCXU633gBoXh8/sQQngGGWjhT2APoCls0XWL2qhx1jAIdr
-AqDmOi3bdzBOpWBBIsOexhbdBrg4BGY2nnsSCisGAQQBl1UBBQEBB0CRVIEEu+Ft
-W68O33iZCVDMIYUWdD59iXfQ7rHf8HxAEgMBCAeIfgQYFggAJhYhBFcMd6zqQMDx
-t1iQLL+WzKVkkPaVBQJmNp57AhsMBQkDwmcAAAoJEL+WzKVkkPaVY7oA/icTs/E6
-47LTon7ua021HdjQlwkHZOpa/hqBWQEB3w6GAQCbaPRxKcNN9Yfwxc6cIvfUORKz
-+4OQzyesHV5P4fYLDw==
-=r/5H
------END PGP PUBLIC KEY BLOCK-----
-EOF
+appimage_key
 
 wget -O "$AIT_DIR/runtime-x86_64.sig" \
   "https://github.com/AppImage/type2-runtime/releases/download/continuous/$RUNTIME.sig"
@@ -671,6 +378,6 @@ fi
 ###############################################
 
 shopt -s extglob
-rm -rf "$APPDIR" "$AIT_DIR" Emote-!(*.AppImage) "v${VERSION}.tar.gz" setproctitle.txt *.patch
+rm -rf "$APPDIR" "$AIT_DIR" Emote-!(*.AppImage) RPMs "v${VERSION}.tar.gz" *.whl
 
 echo "Done"
